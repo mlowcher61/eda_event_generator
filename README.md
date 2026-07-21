@@ -94,6 +94,25 @@ overrides the environment variable:
 python3 eda_event_generator.py --event high_cpu --token 'choose-a-long-random-value'
 ```
 
+### Demo against AAP
+
+Point the `eda_webhook` target at your AAP activation endpoint in
+`events.yml`, then export the token and send an authenticated event to the
+webhook only:
+
+```bash
+export EDA_WEBHOOK_TOKEN='your-long-random-token'
+
+python3 eda_event_generator.py \
+  --event high_cpu \
+  --target eda_webhook
+```
+
+The `--target eda_webhook` filter is important: AAP's `ansible.eda.webhook`
+source only ingests the HTTP webhook, so this skips the `demo_syslog`,
+`demo_snmp`, and `demo_kafka` targets (which point at separate collectors and
+would otherwise be contacted, or error, when nothing is listening).
+
 ### Token precedence (generator side)
 
 1. `--token` command-line flag
