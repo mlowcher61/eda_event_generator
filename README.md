@@ -37,6 +37,73 @@ eda_webhook:
 Change the hostname or IP address to the system running the activation or
 local `ansible-rulebook` process.
 
+## Authenticate to EDA with an OAuth token
+
+The webhook target and the sample rulebook are configured to require an
+OAuth/bearer token so EDA only accepts authenticated events. The generator
+sends the token as an HTTP header:
+
+```
+Authorization: Bearer <token>
+```
+
+and the `ansible.eda.webhook` source rejects any request that is missing or
+carries the wrong token with `HTTP 401`.
+
+The token is **never stored in git**. Both sides read it from the
+`EDA_WEBHOOK_TOKEN` environment variable, defined once in `events.yml`:
+
+```yaml
+eda_webhook:
+  type: webhook
+  url: http://127.0.0.1:5000/endpoint
+  auth:
+    type: bearer
+    token_env: EDA_WEBHOOK_TOKEN
+```
+
+### Local testing
+
+Export the same token in both terminals:
+
+```bash
+export EDA_WEBHOOK_TOKEN='choose-a-long-random-value'
+```
+
+Start the rulebook, importing the variable so `{{ EDA_WEBHOOK_TOKEN }}`
+resolves:
+
+```bash
+ansible-rulebook \
+  --rulebook rulebooks/demo-rulebook.yml \
+  --inventory localhost, \
+  --env-vars EDA_WEBHOOK_TOKEN \
+  --verbose
+```
+
+Then send an authenticated event:
+
+```bash
+python3 eda_event_generator.py --event cisco_interface_down
+```
+
+You can also pass the token explicitly instead of exporting it. `--token`
+overrides the environment variable:
+
+```bash
+python3 eda_event_generator.py --event high_cpu --token 'choose-a-long-random-value'
+```
+
+### Token precedence (generator side)
+
+1. `--token` command-line flag
+2. the environment variable named by `auth.token_env` (recommended)
+3. an inline `auth.token` value in `events.yml` (local testing only — keep it
+   out of git)
+
+If an `auth` block is present but no token can be resolved, the generator
+fails loudly rather than sending an unauthenticated request.
+
 ## Start the sample rulebook
 
 Install the EDA collection:
@@ -140,6 +207,9 @@ For an AAP EDA activation:
 3. Create a rulebook activation using the rulebook.
 4. Make sure TCP port 5000 is reachable from the event generator.
 5. Update the webhook URL in `events.yml` to the activation endpoint.
+6. Set the same `EDA_WEBHOOK_TOKEN` value on the activation (so the rulebook's
+   `{{ EDA_WEBHOOK_TOKEN }}` resolves) and in the shell running the event
+   generator CLI.
 
 For production designs, use TLS, authentication, a supported event source,
 and an intermediary such as Kafka, an observability platform, or an API gateway.

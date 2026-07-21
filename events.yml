@@ -7,6 +7,14 @@ targets:
     verify_tls: false
     headers:
       Content-Type: application/json
+    # Send an OAuth/bearer token so EDA accepts the event.
+    # The token is read from the environment variable named below
+    # (export EDA_WEBHOOK_TOKEN before running the CLI) and sent as:
+    #   Authorization: Bearer <token>
+    # Never commit the token itself to git.
+    auth:
+      type: bearer
+      token_env: EDA_WEBHOOK_TOKEN
 
   demo_syslog:
     type: syslog

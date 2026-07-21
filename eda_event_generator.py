@@ -17,6 +17,7 @@ import argparse
 import json
 import logging
 import logging.handlers
+import os
 import socket
 import sys
 import time
@@ -108,11 +109,53 @@ def build_event(
     return rendered
 
 
+def resolve_bearer_token(target: dict[str, Any]) -> str | None:
+    """Resolve the webhook bearer token for a target.
+
+    Precedence, highest first:
+      1. A token injected at runtime from the --token CLI flag.
+      2. The environment variable named by ``auth.token_env`` (preferred:
+         supplied by an AAP custom credential, never stored in git).
+      3. An inline ``auth.token`` value (local testing only; keep out of git).
+
+    Returns None when the target defines no ``auth`` block. Raises when an
+    ``auth`` block is present but no token can be resolved, so a misconfigured
+    credential fails loudly instead of sending an unauthenticated request.
+    """
+    cli_token = target.get("_auth_token")
+    if cli_token:
+        return cli_token
+
+    auth = target.get("auth") or {}
+    if not auth:
+        return None
+
+    env_name = auth.get("token_env")
+    if env_name:
+        env_value = os.environ.get(env_name)
+        if env_value:
+            return env_value
+
+    inline_token = auth.get("token")
+    if inline_token:
+        return inline_token
+
+    raise RuntimeError(
+        "Webhook auth is configured but no token was found. Set the "
+        f"'{env_name or 'EDA_WEBHOOK_TOKEN'}' environment variable, pass "
+        "--token, or add an inline 'auth.token' for local testing."
+    )
+
+
 def send_webhook(target: dict[str, Any], payload: dict[str, Any]) -> None:
     url = target["url"]
-    headers = target.get("headers", {"Content-Type": "application/json"})
+    headers = dict(target.get("headers", {"Content-Type": "application/json"}))
     timeout = int(target.get("timeout", 10))
     verify_tls = bool(target.get("verify_tls", True))
+
+    token = resolve_bearer_token(target)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
 
     response = requests.post(
         url,
@@ -122,7 +165,8 @@ def send_webhook(target: dict[str, Any], payload: dict[str, Any]) -> None:
         verify=verify_tls,
     )
     response.raise_for_status()
-    print(f"Webhook delivered: HTTP {response.status_code} -> {url}")
+    auth_note = " (authenticated)" if token else ""
+    print(f"Webhook delivered: HTTP {response.status_code}{auth_note} -> {url}")
 
 
 def send_syslog(target: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -292,6 +336,7 @@ def run_event(
     target_filter: str | None,
     overrides: dict[str, str],
     dry_run: bool,
+    cli_token: str | None = None,
 ) -> None:
     definition = config["events"].get(event_name)
     if definition is None:
@@ -323,6 +368,9 @@ def run_event(
         if sender is None:
             raise ValueError(f"Unsupported target type: {transport}")
 
+        if transport == "webhook" and cli_token:
+            target = {**target, "_auth_token": cli_token}
+
         sender(target, payload)
 
 
@@ -346,6 +394,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-t",
         "--target",
         help="Send only to this named target.",
+    )
+    parser.add_argument(
+        "--token",
+        help=(
+            "Bearer token for authenticated webhook targets. Overrides the "
+            "token_env environment variable. Prefer the environment variable "
+            "so the secret stays out of shell history and git."
+        ),
     )
     parser.add_argument(
         "--set",
@@ -403,6 +459,7 @@ def main() -> int:
                 target_filter=args.target,
                 overrides=overrides,
                 dry_run=args.dry_run,
+                cli_token=args.token,
             )
             if index < args.repeat - 1:
                 time.sleep(args.interval)

@@ -6,6 +6,11 @@
     - ansible.eda.webhook:
         host: 0.0.0.0
         port: 5000
+        # Require an OAuth/bearer token on every inbound event.
+        # Requests without "Authorization: Bearer <token>" get HTTP 401.
+        # The value comes from the EDA_WEBHOOK_TOKEN environment variable,
+        # imported with: ansible-rulebook --env-vars EDA_WEBHOOK_TOKEN
+        token: "{{ EDA_WEBHOOK_TOKEN }}"
 
   rules:
     - name: Respond to a Cisco interface-down event
