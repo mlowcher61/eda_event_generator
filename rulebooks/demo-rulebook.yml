@@ -24,7 +24,7 @@
     - name: Respond to high CPU
       condition: >-
         event.payload.event_type == "high_cpu" and
-        event.payload.cpu_percent | int >= 90
+        event.payload.cpu_percent >= 90
       action:
         debug:
           msg: >-

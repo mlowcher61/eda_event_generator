@@ -98,8 +98,8 @@ events:
       - demo_kafka
     variables:
       hostname: router01
-      cpu_percent: "96"
-      threshold: "90"
+      cpu_percent: 96
+      threshold: 90
       severity: critical
     payload:
       hostname: "{{ hostname }}"

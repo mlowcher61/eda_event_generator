@@ -71,6 +71,15 @@ def utc_timestamp() -> str:
 
 def render_value(value: Any, variables: dict[str, Any]) -> Any:
     if isinstance(value, str):
+        # A value that is exactly one placeholder (e.g. "{{ cpu_percent }}")
+        # resolves to the variable's native type, so numbers stay numbers in the
+        # emitted JSON. ansible-rulebook conditions cannot coerce types, so
+        # numeric event.payload fields must already be real numbers, not strings.
+        stripped = value.strip()
+        for key, replacement in variables.items():
+            if stripped in (f"{{{{ {key} }}}}", f"{{{{{key}}}}}"):
+                return replacement
+
         rendered = value
         for key, replacement in variables.items():
             rendered = rendered.replace(f"{{{{ {key} }}}}", str(replacement))
