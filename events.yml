@@ -2,7 +2,7 @@
 targets:
   eda_webhook:
     type: webhook
-    url: http://127.0.0.1:5000/endpoint
+    url: http://aap-aap.apps.cluster-w7h8f-1.dynamic.redhatworkshops.io:5000/endpoint
     timeout: 10
     verify_tls: false
     headers:
