@@ -1,0 +1,205 @@
+---
+targets:
+  eda_webhook:
+    type: webhook
+    url: http://127.0.0.1:5000/endpoint
+    timeout: 10
+    verify_tls: false
+    headers:
+      Content-Type: application/json
+
+  demo_syslog:
+    type: syslog
+    host: 127.0.0.1
+    port: 514
+    protocol: udp
+    facility: local0
+    level: warning
+    message: >-
+      host={{ hostname }} severity={{ severity }} event={{ event_type }}
+      message="{{ message }}"
+
+  demo_snmp:
+    type: snmp
+    host: 127.0.0.1
+    port: 162
+    community: public
+    trap_oid: 1.3.6.1.6.3.1.1.5.3
+    varbinds:
+      - oid: 1.3.6.1.2.1.2.2.1.1.1
+        value: "{{ if_index }}"
+      - oid: 1.3.6.1.2.1.2.2.1.2.1
+        value: "{{ interface }}"
+      - oid: 1.3.6.1.2.1.1.5.0
+        value: "{{ hostname }}"
+
+  demo_kafka:
+    type: kafka
+    bootstrap_servers: 127.0.0.1:9092
+    topic: eda-events
+    key_field: hostname
+
+events:
+  cisco_interface_down:
+    description: Cisco switch interface transitions to down
+    targets:
+      - eda_webhook
+      - demo_syslog
+    variables:
+      hostname: switch01
+      interface: GigabitEthernet1/0/24
+      ip_address: 10.10.10.21
+      severity: critical
+    payload:
+      vendor: Cisco
+      platform: IOS-XE
+      hostname: "{{ hostname }}"
+      device_ip: "{{ ip_address }}"
+      event_type: interface_down
+      interface: "{{ interface }}"
+      severity: "{{ severity }}"
+      message: "Interface {{ interface }} changed state to down"
+      timestamp: "{{ timestamp }}"
+
+  cisco_interface_up:
+    description: Cisco switch interface returns to up
+    targets:
+      - eda_webhook
+      - demo_syslog
+    variables:
+      hostname: switch01
+      interface: GigabitEthernet1/0/24
+      ip_address: 10.10.10.21
+      severity: informational
+    payload:
+      vendor: Cisco
+      platform: IOS-XE
+      hostname: "{{ hostname }}"
+      device_ip: "{{ ip_address }}"
+      event_type: interface_up
+      interface: "{{ interface }}"
+      severity: "{{ severity }}"
+      message: "Interface {{ interface }} changed state to up"
+      timestamp: "{{ timestamp }}"
+
+  high_cpu:
+    description: Device CPU utilization exceeds threshold
+    targets:
+      - eda_webhook
+      - demo_syslog
+      - demo_kafka
+    variables:
+      hostname: router01
+      cpu_percent: "96"
+      threshold: "90"
+      severity: critical
+    payload:
+      hostname: "{{ hostname }}"
+      event_type: high_cpu
+      cpu_percent: "{{ cpu_percent }}"
+      threshold: "{{ threshold }}"
+      severity: "{{ severity }}"
+      message: "CPU utilization is {{ cpu_percent }} percent"
+      timestamp: "{{ timestamp }}"
+
+  bgp_neighbor_down:
+    description: BGP neighbor transitions to Idle
+    targets:
+      - eda_webhook
+      - demo_syslog
+    variables:
+      hostname: edge-router01
+      neighbor: 192.0.2.10
+      remote_as: "65010"
+      severity: critical
+    payload:
+      hostname: "{{ hostname }}"
+      event_type: bgp_neighbor_down
+      neighbor: "{{ neighbor }}"
+      remote_as: "{{ remote_as }}"
+      state: Idle
+      severity: "{{ severity }}"
+      message: "BGP neighbor {{ neighbor }} transitioned to Idle"
+      timestamp: "{{ timestamp }}"
+
+  palo_alto_threat:
+    description: Palo Alto firewall detects a critical threat
+    targets:
+      - eda_webhook
+      - demo_syslog
+      - demo_kafka
+    variables:
+      hostname: pa-fw01
+      source_ip: 198.51.100.25
+      destination_ip: 10.20.30.40
+      threat_name: demo-malware-signature
+      severity: critical
+    payload:
+      vendor: Palo Alto Networks
+      hostname: "{{ hostname }}"
+      event_type: threat_detected
+      source_ip: "{{ source_ip }}"
+      destination_ip: "{{ destination_ip }}"
+      threat_name: "{{ threat_name }}"
+      severity: "{{ severity }}"
+      action: blocked
+      message: "Threat {{ threat_name }} was blocked"
+      timestamp: "{{ timestamp }}"
+
+  failed_login:
+    description: Multiple failed SSH login attempts detected
+    targets:
+      - eda_webhook
+      - demo_syslog
+    variables:
+      hostname: linux01
+      username: root
+      source_ip: 203.0.113.55
+      attempts: "8"
+      severity: warning
+    payload:
+      hostname: "{{ hostname }}"
+      event_type: failed_login
+      username: "{{ username }}"
+      source_ip: "{{ source_ip }}"
+      attempts: "{{ attempts }}"
+      severity: "{{ severity }}"
+      message: "{{ attempts }} failed login attempts for {{ username }}"
+      timestamp: "{{ timestamp }}"
+
+  snmp_link_down:
+    description: SNMP linkDown trap
+    targets:
+      - demo_snmp
+    variables:
+      hostname: switch01
+      interface: GigabitEthernet1/0/24
+      if_index: "24"
+      severity: critical
+    payload:
+      hostname: "{{ hostname }}"
+      event_type: snmp_link_down
+      interface: "{{ interface }}"
+      if_index: "{{ if_index }}"
+      severity: "{{ severity }}"
+      message: "SNMP linkDown trap for {{ interface }}"
+      timestamp: "{{ timestamp }}"
+
+  application_error:
+    description: Application reports an HTTP 500 error
+    targets:
+      - eda_webhook
+      - demo_kafka
+    variables:
+      hostname: app01
+      application: orders-api
+      status_code: "500"
+      severity: critical
+    payload:
+      hostname: "{{ hostname }}"
+      application: "{{ application }}"
+      event_type: application_error
+      status_code: "{{ status_code }}"
+      severity: "{{ severity }}"
+      message: "{{ application }} returned HTTP {{ status_code }}"
+      timestamp: "{{ timestamp }}"

@@ -1,0 +1,35 @@
+---
+- name: EDA event generator demo
+  hosts: all
+
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+
+  rules:
+    - name: Respond to a Cisco interface-down event
+      condition: event.payload.event_type == "interface_down"
+      action:
+        debug:
+          msg: >-
+            Interface {{ event.payload.interface }} is down on
+            {{ event.payload.hostname }}
+
+    - name: Respond to high CPU
+      condition: >-
+        event.payload.event_type == "high_cpu" and
+        event.payload.cpu_percent | int >= 90
+      action:
+        debug:
+          msg: >-
+            High CPU detected on {{ event.payload.hostname }}:
+            {{ event.payload.cpu_percent }} percent
+
+    - name: Respond to a Palo Alto threat
+      condition: event.payload.event_type == "threat_detected"
+      action:
+        debug:
+          msg: >-
+            Threat {{ event.payload.threat_name }} blocked by
+            {{ event.payload.hostname }}

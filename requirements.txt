@@ -1,0 +1,4 @@
+PyYAML>=6.0
+requests>=2.31
+pysnmp>=4.4
+confluent-kafka>=2.3
